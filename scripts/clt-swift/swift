@@ -1,0 +1,132 @@
+#!/usr/bin/python3
+"""A stand-in for `swift build` when only the Command Line Tools are installed.
+
+Some Command Line Tools releases ship a Swift Package Manager whose manifest
+library doesn't link, so every `swift build` fails before compiling anything.
+The screen-capture crates (apple-cf, apple-metal, screencapturekit) build their
+Swift bridges with `swift build`; this script compiles those packages directly
+with swiftc instead: each target as its own module, in dependency order, then
+one static library named after the package's product, where SwiftPM would put
+it (`<scratch-path>/release/lib<Product>.a`).
+
+Put this folder first on PATH for a build. Anything other than `swift build`
+goes to the real swift unchanged. With Xcode installed it isn't needed.
+"""
+import os
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+REAL_SWIFT = "/usr/bin/swift"
+
+
+def real(args):
+    os.execv(REAL_SWIFT, [REAL_SWIFT] + args)
+
+
+def parse_args(args):
+    opts = {"swiftc": [], "config": "debug", "triple": None, "package": ".", "scratch": None}
+    i = 0
+    while i < len(args):
+        a = args[i]
+        nxt = args[i + 1] if i + 1 < len(args) else None
+        if a in ("-c", "--configuration"):
+            opts["config"] = nxt; i += 2
+        elif a == "--triple":
+            opts["triple"] = nxt; i += 2
+        elif a == "--package-path":
+            opts["package"] = nxt; i += 2
+        elif a == "--scratch-path":
+            opts["scratch"] = nxt; i += 2
+        elif a == "-Xswiftc":
+            opts["swiftc"].append(nxt); i += 2
+        else:
+            raise SystemExit(f"clt-swift: unsupported option {a!r}")
+    return opts
+
+
+def parse_manifest(text):
+    text = re.sub(r"//[^\n]*", "", text)
+    product = re.search(r"\.library\(\s*name:\s*\"([^\"]+)\"", text).group(1)
+    mac = re.search(r"\.macOS\(\s*\.v(\d+)(?:_(\d+))?", text)
+    macos = f"{mac.group(1)}.{mac.group(2) or 0}" if mac else "11.0"
+    targets = {}
+    for m in re.finditer(r"\.target\(\s*(.*?)\)\s*(?=,\s*\.target\(|,?\s*\])", text, re.S):
+        body = m.group(1)
+        name = re.search(r"name:\s*\"([^\"]+)\"", body).group(1)
+        path = re.search(r"path:\s*\"([^\"]+)\"", body)
+        deps = re.search(r"dependencies:\s*\[(.*?)\]", body, re.S)
+        targets[name] = {
+            "path": path.group(1) if path else f"Sources/{name}",
+            "deps": re.findall(r"\"([^\"]+)\"", deps.group(1)) if deps else [],
+        }
+    return product, macos, targets
+
+
+def order(targets):
+    done, out = set(), []
+
+    def visit(name, stack=()):
+        if name in done:
+            return
+        if name in stack:
+            raise SystemExit(f"clt-swift: dependency cycle at {name}")
+        for dep in targets[name]["deps"]:
+            visit(dep, stack + (name,))
+        done.add(name)
+        out.append(name)
+
+    for name in targets:
+        visit(name)
+    return out
+
+
+def main():
+    args = sys.argv[1:]
+    if not args or args[0] != "build":
+        real(args)
+    opts = parse_args(args[1:])
+    package = Path(opts["package"]).resolve()
+    product, macos, targets = parse_manifest((package / "Package.swift").read_text())
+    arch = (opts["triple"] or "arm64-apple-macosx").split("-")[0]
+    target_triple = f"{arch}-apple-macosx{macos}"
+    scratch = Path(opts["scratch"] or package / ".build").resolve()
+    out = scratch / opts["config"]
+    modules = scratch / "clt-modules"
+    objects = scratch / "clt-objects"
+    for d in (out, modules, objects):
+        d.mkdir(parents=True, exist_ok=True)
+    optimize = ["-O"] if opts["config"] == "release" else ["-Onone", "-g"]
+
+    built = []
+    for name in order(targets):
+        sources = sorted(str(p) for p in (package / targets[name]["path"]).rglob("*.swift"))
+        if not sources:
+            continue
+        obj = objects / f"{name}.o"
+        cmd = [
+            "xcrun", "swiftc", "-parse-as-library", "-module-name", name,
+            "-target", target_triple, *optimize, "-wmo",
+            "-emit-module", "-emit-module-path", str(modules / f"{name}.swiftmodule"),
+            "-I", str(modules), "-c", *sources, "-o", str(obj), *opts["swiftc"],
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        sys.stderr.write(result.stderr)
+        if result.returncode != 0:
+            sys.stdout.write(result.stdout)
+            return result.returncode
+        built.append(str(obj))
+
+    library = out / f"lib{product}.a"
+    library.unlink(missing_ok=True)
+    result = subprocess.run(["xcrun", "libtool", "-static", "-o", str(library), *built],
+                            capture_output=True, text=True)
+    sys.stderr.write(result.stderr)
+    if result.returncode == 0:
+        print(f"clt-swift: built {library}")
+    return result.returncode
+
+
+if __name__ == "__main__":
+    sys.exit(main())

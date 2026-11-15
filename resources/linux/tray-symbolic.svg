@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!--
+    Utter's tray mark as a symbolic icon: a rounded "u" holding a level bar,
+    drawn in the panel's text color.
+
+    Plasma 6 loads this icon name with the panel's own palette and recolors it
+    through KDE's current-color-scheme stylesheet. GNOME's AppIndicator
+    extension and Waybar recolor it because its name ends in -symbolic, not
+    through that stylesheet. Hosts that do not recolor it show this default,
+    chosen like the tray pixmap from the desktop's color-scheme preference.
+
+    X-Utter-Managed=true
+  -->
+  <style id="current-color-scheme" type="text/css">.ColorScheme-Text { color:#ffffff; }</style>
+  <g class="ColorScheme-Text" fill="none" stroke="currentColor" stroke-width="3.9" stroke-linecap="round" stroke-linejoin="round" transform="translate(1 1) scale(0.3)">
+    <path d="M24 18V54A26 26 0 0 0 76 54V18"/>
+    <path d="M50 24V56"/>
+  </g>
+</svg>

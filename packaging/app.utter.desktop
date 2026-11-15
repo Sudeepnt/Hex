@@ -1,0 +1,15 @@
+[Desktop Entry]
+Type=Application
+Name=Utter
+Comment=Local voice dictation
+Exec=@UTTER_BIN@
+Icon=app.utter
+Terminal=false
+Categories=Utility;Accessibility;
+StartupNotify=true
+StartupWMClass=app.utter
+Actions=quit;
+
+[Desktop Action quit]
+Name=Quit Utter
+Exec=@UTTER_BIN@ quit

@@ -1,0 +1,14 @@
+[package]
+name = "utter-theme"
+version = "0.1.0"
+edition = "2024"
+license = "MIT"
+description = "Utter's design language: colour tokens, fonts and icons as a rune-kit theme."
+
+[lib]
+name = "utter_theme"
+
+[dependencies]
+rune = { path = "../../vendor/rune/crates/rune", default-features = false }
+rune-kit = { path = "../../vendor/rune/crates/rune-kit" }
+serde_json = "1"

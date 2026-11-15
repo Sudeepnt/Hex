@@ -1,0 +1,13 @@
+{
+  "name": "Utter",
+  "project": "UtterMobile.xcodeproj",
+  "scheme": "UtterMobile",
+  "teamId": "QC99C9JE59",
+  "appId": "6792547327",
+  "bundleId": "app.utter.mobile",
+  "internalGroup": "HEX Internal",
+  "configuration": "Release",
+  "destination": "generic/platform=iOS",
+  "buildDirectory": "build/testflight",
+  "buildNumberFiles": []
+}

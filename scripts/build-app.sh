@@ -1,0 +1,133 @@
+#!/bin/sh
+set -eu
+
+root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+. "$root/scripts/macos-signing.sh"
+# UTTER_TEST_BUILD=1 builds the CI test app: ad-hoc signed, under its own
+# name and bundle ID so it installs beside the released Utter and never
+# touches its permissions; it never checks for updates.
+# UTTER_LOCAL_BUILD=1 marks a build made from a checkout for its owner's own
+# machine (Developer ID signed as usual): it shows "Local build · updates off"
+# with its commit and never checks for or offers updates.
+# UTTER_RELEASE_UNSIGNED=1 builds the release app (Utter, app.utter) ad-hoc
+# signed: the Release workflow's build job, which holds no credentials. Its
+# sign-macos job signs it with the Developer ID (.github/release/sign-macos.sh).
+if [ "${UTTER_RELEASE_UNSIGNED:-}" = 1 ]; then
+  team_id=
+  identity=-
+  app_name=Utter
+  bundle_id=app.utter
+elif [ "${UTTER_TEST_BUILD:-}" = 1 ]; then
+  team_id=
+  identity=-
+  app_name="Utter Test"
+  bundle_id=app.utter.test
+else
+  team_id=${UTTER_TEAM_ID:?Set UTTER_TEAM_ID to the Apple Developer signing team}
+  identity=$(utter_codesign_identity "$team_id")
+  app_name=Utter
+  bundle_id=app.utter
+fi
+# Every build carries the `capture` experiment (dormant until enabled), with
+# Scrawl's `scrawl-helper` beside `utter`, where the engine looks for it.
+# crates/capture/build.rs compiles the helper from crates/capture/helper into
+# target/release.
+icon_output="$root/target/AppIcon.assets"
+icon_info="$root/target/AppIcon-info.plist"
+version=$(utter_version "$root")
+build_number=$(utter_build_number "$version")
+bundle_name="$app_name.app"
+executable_name=utter
+
+bundle="$root/target/app/$bundle_name"
+executable="$bundle/Contents/MacOS/$executable_name"
+
+sign() {
+  if [ "$identity" = - ]; then
+    codesign --force --sign - "$@"
+  else
+    codesign --force --timestamp --options runtime --sign "$identity" "$@"
+  fi
+}
+
+export MACOSX_DEPLOYMENT_TARGET=15.0
+# Cargo may run through a wrapper that does not forward the environment (Kit's
+# HiveMind-backed cargo), so build-time variables also travel as --config.
+env_args=()
+if [ -z "${UTTER_COMMIT:-}" ] && { [ "${UTTER_LOCAL_BUILD:-}" = 1 ] || [ "${UTTER_TEST_BUILD:-}" = 1 ]; }; then
+  UTTER_COMMIT=$(git -C "$root" rev-parse --short=7 HEAD 2>/dev/null || true)
+fi
+for name in UTTER_LOCAL_BUILD UTTER_TEST_BUILD UTTER_COMMIT UTTER_BUILD_CHANNEL; do
+  value=${!name:-}
+  if [ -n "$value" ]; then
+    case "$value" in
+      *\'*) echo "$name must not contain a single quote" >&2; exit 1 ;;
+    esac
+    env_args+=(--config "env.$name='$value'")
+  fi
+done
+# The helper's embedded Info.plist names Utter, not Scrawl.
+SCRAWL_HELPER_PLIST="$root/packaging/macos/scrawl-helper-Info.plist" \
+  cargo build --locked --release ${env_args[@]+"${env_args[@]}"} --manifest-path "$root/Cargo.toml" >&2
+rm -rf "$bundle"
+mkdir -p "$bundle/Contents/MacOS" "$bundle/Contents/Resources" "$bundle/Contents/Library"
+cp "$root/target/release/utter" "$executable"
+cp "$root/target/release/scrawl-helper" "$bundle/Contents/MacOS/scrawl-helper"
+cp "$root/app/Info.plist" "$bundle/Contents/Info.plist"
+cp "$root/LICENSE" "$root/THIRD_PARTY_NOTICES.md" "$bundle/Contents/Resources/"
+UTTER_VERSION="$version" UTTER_BUILD_NUMBER="$build_number" UTTER_TEAM_ID="$team_id" UTTER_CODESIGN_IDENTITY="${identity#-}" UTTER_SKIP_INSTALL_SCRIPT=1 \
+  "$root/scripts/build-utter-microphone-driver.sh" "$bundle/Contents/Library" >&2
+/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $version" "$bundle/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleVersion $build_number" "$bundle/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleIdentifier $bundle_id" "$bundle/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleExecutable $executable_name" "$bundle/Contents/Info.plist"
+plutil -replace CFBundleName -string "$app_name" "$bundle/Contents/Info.plist"
+plutil -replace CFBundleDisplayName -string "$app_name" "$bundle/Contents/Info.plist"
+# Links into the playground (src/rune_ui/story_link.rs); a test build's own
+# scheme never opens the installed Utter.
+url_scheme=utter
+[ "${UTTER_TEST_BUILD:-}" = 1 ] && url_scheme=utter-test
+/usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLName $bundle_id" "$bundle/Contents/Info.plist"
+/usr/libexec/PlistBuddy -c "Set :CFBundleURLTypes:0:CFBundleURLSchemes:0 $url_scheme" "$bundle/Contents/Info.plist"
+# The helper mirrors a cabled iPhone as a camera; macOS asks on Utter's behalf.
+plutil -replace NSCameraUsageDescription -string "Utter mirrors and records a cabled iPhone's screen for a capture." "$bundle/Contents/Info.plist"
+rm -rf "$icon_output"
+mkdir -p "$icon_output"
+if xcrun --find actool >/dev/null 2>&1; then
+  xcrun actool "$root/app/AppIcon.icon" \
+    --compile "$icon_output" \
+    --platform macosx \
+    --minimum-deployment-target 15.0 \
+    --app-icon AppIcon \
+    --standalone-icon-behavior all \
+    --output-partial-info-plist "$icon_info" \
+    --output-format human-readable-text \
+    --warnings \
+    --notices >&2
+  cp "$icon_output/AppIcon.icns" "$icon_output/Assets.car" "$bundle/Contents/Resources/"
+else
+  # Without Xcode there is no actool: build a plain .icns from the rendered
+  # app icon (scripts/render-icons.swift) instead of the layered Liquid Glass one.
+  swift "$root/scripts/render-icons.swift" "$root" >/dev/null
+  iconset="$icon_output/AppIcon.iconset"
+  mkdir -p "$iconset"
+  for size in 16 32 128 256 512; do
+    sips -z "$size" "$size" "$root/packaging/linux/icons/hicolor/512x512/apps/app.utter.png" \
+      --out "$iconset/icon_${size}x${size}.png" >/dev/null
+    double=$((size * 2))
+    sips -z "$double" "$double" "$root/packaging/linux/icons/hicolor/512x512/apps/app.utter.png" \
+      --out "$iconset/icon_${size}x${size}@2x.png" >/dev/null
+  done
+  iconutil -c icns "$iconset" -o "$bundle/Contents/Resources/AppIcon.icns"
+  /usr/libexec/PlistBuddy -c "Add :CFBundleIconFile string AppIcon" "$bundle/Contents/Info.plist" 2>/dev/null \
+    || /usr/libexec/PlistBuddy -c "Set :CFBundleIconFile AppIcon" "$bundle/Contents/Info.plist"
+fi
+
+sign "$bundle/Contents/Library/UtterMicrophone.driver"
+# Utter runs it only to decode the capture's movie, which needs no
+# entitlement; anything it touches is attributed to Utter, its responsible
+# process.
+sign --identifier "$bundle_id.scrawl-helper" "$bundle/Contents/MacOS/scrawl-helper"
+sign --entitlements "$root/app/utter.entitlements" "$bundle"
+codesign --verify --deep --strict --verbose=2 "$bundle"
+echo "$bundle"
