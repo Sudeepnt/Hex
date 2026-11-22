@@ -205,10 +205,10 @@ impl SfxTrack {
     /// `"Without Utter"` from `from`: every keystroke, harder as panic builds
     /// (a space-bar thud under the tap), a soft send, Jay's messages, a
     /// deadpan tick on `"Read"`, and the selected set's error on removal.
-    /// The keys are always the mechanical clack, whatever the reader picked
-    /// for their own typing: this is someone else's keyboard.
+    /// The keys are always the muted felt tap, whatever the reader picked
+    /// for their own typing: it sits under the voice and never wears.
     pub(crate) fn on_without_utter(&mut self, from: f64, scene: &typing::Scene) {
-        let style = KeySoundStyle::Clack;
+        let style = KeySoundStyle::Felt;
         let mut prev_variant: Option<u8> = None;
         let mut prev_at = None;
         for (i, stroke) in scene.strokes().iter().enumerate() {
@@ -572,7 +572,7 @@ mod tests {
     }
 
     #[test]
-    fn without_utter_clacks_whatever_key_sound_was_picked() {
+    fn without_utter_taps_whatever_key_sound_was_picked() {
         let scene = typing::Scene::default();
         let mut track = SfxTrack {
             style: KeySoundStyle::Silent,
@@ -593,7 +593,7 @@ mod tests {
             })
             .collect();
         assert!(!styles.is_empty());
-        assert!(styles.iter().all(|&s| s == KeySoundStyle::Clack));
+        assert!(styles.iter().all(|&s| s == KeySoundStyle::Felt));
     }
 
     #[test]

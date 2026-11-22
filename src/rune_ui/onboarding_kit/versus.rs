@@ -123,7 +123,7 @@ fn script() -> &'static Script<'static> {
 }
 
 /// Your spoken line in `"With Utter"`.
-fn take() -> &'static Take {
+pub(super) fn take() -> &'static Take {
     script().take()
 }
 
@@ -141,7 +141,7 @@ fn field_origin() -> [f32; 2] {
 }
 
 /// Seconds into `"Without Utter"`, once it has started.
-fn scene_time(s: &Onboard) -> Option<f64> {
+pub(super) fn scene_time(s: &Onboard) -> Option<f64> {
     s.typing_from.map(|from| s.now - from)
 }
 
@@ -386,13 +386,9 @@ pub(super) fn heading(p: Paint, s: &Onboard) -> El {
         // two lines (the playground's layouts only, so English), it says what you
         // do, as `"With Utter"`'s does.
         Step::Parked if !scene_over(s) || s.demo_hears() => (
-            "without",
-            tr("Without Utter").to_string(),
-            if Layout::chosen().two_lines() {
-                line("lead-type", "Type it by hand.".to_string())
-            } else {
-                el().key("lead-none")
-            },
+            "race",
+            "Same note. Two ways.".to_string(),
+            line("lead-race", "One by hand, one by voice.".to_string()),
         ),
         Step::Parked => (
             "with",
@@ -607,7 +603,19 @@ fn look(p: Paint, opening: Option<f64>) -> Look {
     }
 }
 
+/// The stage: the race, or before the Launch Room's row is clicked (the
+/// playground's click-to-start story), the row.
 pub(super) fn stage(p: Paint, s: &Onboard) -> El {
+    if waiting_to_start(s) {
+        legacy_stage(p, s)
+    } else {
+        super::race::stage(p, s)
+    }
+}
+
+/// The conversation-and-keyboard stage the race replaced; only its waiting
+/// row is still shown.
+fn legacy_stage(p: Paint, s: &Onboard) -> El {
     let since_parked = s.parked_from.map_or(0.0, |from| s.now - from);
     if waiting_to_start(s) {
         return el()

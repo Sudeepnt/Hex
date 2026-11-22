@@ -94,20 +94,44 @@ impl Take {
     }
 }
 
-/// Confident 1.5 s spoken answer when the investors are in the room: what
-/// `"Without Utter"` choked on, then the rest of the thought.
+/// The race's spoken note: what takes the typist most of ten seconds takes
+/// the speaker three and a half.
 pub(crate) const ANSWER_JAY: Take = Take {
     updates: &[
-        (0.16, "Yes,"),
-        (0.34, "Yes, we're"),
-        (0.54, "Yes, we're ready."),
-        (0.80, "Yes, we're ready. Everything's"),
-        (1.04, "Yes, we're ready. Everything's tested,"),
-        (1.24, "Yes, we're ready. Everything's tested, go"),
-        (1.42, "Yes, we're ready. Everything's tested, go ahead."),
+        (0.20, "Running"),
+        (0.50, "Running ten"),
+        (0.80, "Running ten minutes"),
+        (1.10, "Running ten minutes late,"),
+        (1.40, "Running ten minutes late, start"),
+        (1.65, "Running ten minutes late, start without"),
+        (1.90, "Running ten minutes late, start without me."),
+        (2.20, "Running ten minutes late, start without me. I'll"),
+        (2.40, "Running ten minutes late, start without me. I'll send"),
+        (2.60, "Running ten minutes late, start without me. I'll send the"),
+        (2.80, "Running ten minutes late, start without me. I'll send the deck"),
+        (3.00, "Running ten minutes late, start without me. I'll send the deck from"),
+        (3.15, "Running ten minutes late, start without me. I'll send the deck from the"),
+        (3.30, "Running ten minutes late, start without me. I'll send the deck from the car."),
     ],
-    release: 1.5,
+    release: 3.4,
 };
+
+/// `text` as a take: even word timings at an easy speaking pace.
+pub(crate) fn even_take(text: &str) -> &'static Take {
+    let words: Vec<&str> = text.split_whitespace().collect();
+    let release = (0.1 + 0.2 * words.len() as f64).max(1.0);
+    let step = (release - 0.26) / words.len().max(1) as f64;
+    let updates: Vec<(f64, &'static str)> = (1..=words.len())
+        .map(|n| {
+            let partial: &'static str = Box::leak(words[..n].join(" ").into_boxed_str());
+            (0.16 + step * (n - 1) as f64, partial)
+        })
+        .collect();
+    Box::leak(Box::new(Take {
+        updates: Box::leak(updates.into_boxed_slice()),
+        release: (release * 10.0).round() / 10.0,
+    }))
+}
 
 /// Saying anything on the try screen.
 pub(crate) const ANSWER_TRY: Take = Take {
@@ -150,10 +174,10 @@ mod tests {
     }
 
     #[test]
-    fn a_take_reports_its_newest_partial_in_one_and_a_half_seconds() {
+    fn a_take_reports_its_newest_partial_in_three_and_a_half_seconds() {
         assert_eq!(ANSWER_JAY.partial(0.0), "");
-        assert_eq!(ANSWER_JAY.partial(0.4), "Yes, we're");
-        assert!(ANSWER_JAY.partial(2.0).ends_with('.'));
-        assert!(ANSWER_JAY.finished(1.5));
+        assert_eq!(ANSWER_JAY.partial(0.6), "Running ten");
+        assert!(ANSWER_JAY.partial(3.4).ends_with('.'));
+        assert!(ANSWER_JAY.finished(3.4));
     }
 }

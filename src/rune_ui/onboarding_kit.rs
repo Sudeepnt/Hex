@@ -54,6 +54,7 @@ mod sparks;
 mod stories;
 mod triumph;
 mod typing;
+mod race;
 mod versus;
 mod words;
 

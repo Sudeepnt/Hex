@@ -12,8 +12,8 @@ import Foundation
 import ImageIO
 import UniformTypeIdentifiers
 
-let BRAND_TOP = CGColor(srgbRed: 0.66, green: 0.40, blue: 0.97, alpha: 1)     // #a866f7
-let BRAND_BOTTOM = CGColor(srgbRed: 0.40, green: 0.13, blue: 0.74, alpha: 1)  // #6621bd
+let BRAND_TOP = CGColor(srgbRed: 0.98, green: 0.57, blue: 0.24, alpha: 1)     // #fb923c
+let BRAND_BOTTOM = CGColor(srgbRed: 0.76, green: 0.25, blue: 0.05, alpha: 1)  // #c2410c
 
 let root = URL(fileURLWithPath: CommandLine.arguments.count > 1
     ? CommandLine.arguments[1]

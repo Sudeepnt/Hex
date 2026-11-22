@@ -3,7 +3,7 @@
 
 Change the three values below and run `python3 tools/brand.py`:
   ACCENT_HUE      the brand colour (OKLCH hue, degrees): 305 violet, 265 blue,
-                  185 teal, 150 green, 30 coral.
+                  185 teal, 150 green, 47 orange (with ACCENT_LIFT), 30 coral.
   NEUTRAL_HUE     the tint of greys and backgrounds (75 warm paper, 250 cool slate).
   NEUTRAL_CHROMA  how strongly greys are tinted (0 = pure grey, 0.012 = soft).
 The accent family (every blue, plus the "ember" brand scale) moves to
@@ -11,7 +11,12 @@ ACCENT_HUE keeping its lightness and saturation, so contrast is unchanged.
 """
 import json, math, pathlib, re
 
-ACCENT_HUE = 305.0
+ACCENT_HUE = 47.4
+# Orange needs to sit brighter than the violet it replaces to read as #FB7F37:
+# the lift fades in from mid-scale up, so backgrounds and borders stay put.
+ACCENT_LIFT = 0.055
+# Orange at that brightness reads hot at violet's saturation; this matches #FB7F37.
+ACCENT_CHROMA = 0.823
 NEUTRAL_HUE = 75.0
 NEUTRAL_CHROMA = 0.012
 
@@ -71,7 +76,9 @@ def recolour(key, value):
     L, C, H = rgb_to_oklch(r, g, b)
     if key.startswith("ember-") or (C > 0.035 and 235 <= H <= 290):
         shift = ACCENT_HUE - (265.0 if not key.startswith("ember-") else H)
-        return hexcolour(fit(L, C, (H + shift) % 360), alpha)
+        u = min(max((L - 0.40) / 0.28, 0.0), 1.0)
+        lifted = min(L + ACCENT_LIFT * u * u * (3.0 - 2.0 * u), 0.97)
+        return hexcolour(fit(lifted, C * ACCENT_CHROMA, (H + shift) % 360), alpha)
     if C < 0.02:
         # Tint greys: strongest mid-scale, faint at pure white and black.
         tint = NEUTRAL_CHROMA * math.sin(math.pi * min(max(L, 0), 1)) ** 0.7

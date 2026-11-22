@@ -288,10 +288,10 @@ pub(crate) fn keyboard_lit(p: Paint, key: &str, light: Lighting<'_>) -> El {
 
         let base = level * (1.0 - (light.hollow)(slot.rect).clamp(0.0, 1.0));
         let vis = seen((base + (1.0 - base) * lit).max(red)) * rise;
-        let lit_cap = warm.mix(c.white, if k.dark { 0.30 } else { 0.42 });
+        let lit_cap = warm;
         let fill_raw = cap_base
             .mix(cap_pressed, down)
-            .mix(lit_cap, lit * if k.dark { 0.72 } else { 0.62 })
+            .mix(lit_cap, lit)
             .mix(c.bg_deep.mix(c.danger.fg, 0.30), red);
         let fill = bg.mix(fill_raw, vis);
         let rim = cap_rim

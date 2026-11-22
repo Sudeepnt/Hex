@@ -11,6 +11,7 @@
 //! answer. The first run's `"Your turn"` feeds it Utter's own dictation; the
 //! playground story feeds it scripted answers.
 
+mod answer;
 mod certificate;
 pub(crate) mod fx;
 mod lines;
@@ -30,7 +31,7 @@ use rune_kit::{Button, ButtonVariant, TextInput};
 
 use super::super::Ui;
 use super::super::controls::{Paint, PushSize};
-use super::cards::{CARD_W, Notice, Reply, field_text_origin, floating, lines_card_height, notice};
+use super::cards::{App, CARD_W, Notice, Reply, field_text_origin, floating, lines_card_height, notice};
 use super::field_text::{CARD, Field};
 use super::fixture::Take;
 use super::flight::{Flight, ember_tone, flicker, flying, typeset};
@@ -165,28 +166,64 @@ const ENDLESS: [([f32; 2], [f32; 2]); 4] = [
     ([LEFT, 128.0], [-520.0, -30.0]),
 ];
 
-/// The `n`th card of a run with `seed`: the opening theme's first two
-/// messages, the certificate, then (on Keep playing) the rest of the
-/// messages in threes ([`lines`]).
-fn spec(seed: u64, n: usize) -> Spec {
+/// The three questions: a friend, Mom, and a prompt for an assistant, each
+/// with the answer the playground story gives it.
+fn questions() -> &'static [(Notice, &'static Take); 3] {
+    static QUESTIONS: std::sync::OnceLock<[(Notice, &'static Take); 3]> =
+        std::sync::OnceLock::new();
+    QUESTIONS.get_or_init(|| {
+        let ask = |key, from, place, body, field, answer| {
+            let notice = Notice {
+                key,
+                app: App::Messages,
+                from,
+                person: None,
+                place,
+                body,
+                field,
+            };
+            (notice, super::fixture::even_take(answer))
+        };
+        [
+            ask(
+                "friend",
+                "Sam",
+                None,
+                "wanna grab food after work?",
+                "iMessage",
+                "Yes, let's go at seven, I'll book a table.",
+            ),
+            ask(
+                "mom",
+                "Mom",
+                None,
+                "are you coming home for dinner on Sunday?",
+                "iMessage",
+                "Yes, I'll be there at six and I'll bring dessert.",
+            ),
+            ask(
+                "prompt",
+                "Assistant",
+                Some("New chat"),
+                "What do you want to ask or build today?",
+                "Your prompt",
+                "Summarize my meeting notes into five bullet points and list who owns each action.",
+            ),
+        ]
+    })
+}
+
+/// The `n`th card of a run: the three questions, in order.
+fn spec(_seed: u64, n: usize) -> Spec {
     let (home, from) = OPENING
         .get(n)
         .copied()
         .unwrap_or_else(|| ENDLESS[(n - OPENING.len()) % ENDLESS.len()]);
-    if n == CERTIFICATE {
-        return Spec {
-            card: Card::Certificate,
-            demo: &SAY_NAME,
-            heat: 0.62,
-            home,
-            from,
-        };
-    }
-    let line = lines::nth(seed, if n < CERTIFICATE { n } else { n - 1 });
+    let (notice, demo) = questions()[n.min(CERTIFICATE)];
     Spec {
-        card: Card::Chat(line.notice),
-        demo: line.demo,
-        heat: line.heat,
+        card: Card::Chat(notice),
+        demo,
+        heat: 0.5,
         home,
         from,
     }
@@ -1144,45 +1181,15 @@ fn view(g: &Game, cx: &mut Cx<Game>) -> El {
 
 /// The game at `t`, on its stage.
 fn render<S: 'static>(p: Paint, g: &Play, t: f64, reduced: bool, look: &Look<'_, S>) -> El {
-    let destroyed = g.destroyed(t);
-    let (shake, tilt) = if reduced {
-        ([0.0, 0.0], 0.0)
-    } else {
-        shake(g, t)
-    };
-
-    let mut world = el()
+    let world = el()
         .key("world")
         .size(STAGE_W, STAGE_H)
-        // The screen shake: a kick along the last word's heading under
-        // noise, whose steps can be a jump from one frame to the next.
-        .motion_intent(MotionIntent::KICK | MotionIntent::STEP)
-        .offset(shake[0], shake[1])
-        .rotate(tilt)
-        .offset_motion(Anim::INSTANT)
-        .rotate_motion(Anim::INSTANT)
-        .child(header(p, g, destroyed, t, reduced, look))
+        .child(header(p, g, t, look))
         .children(hud(p, g, t, reduced, look))
-        .children(look.hint.map(|copy| hint(p, copy, look.offer.as_ref())));
-
-    for r in &g.rounds {
-        if let Some(card) = card(p, r, t, reduced, reward_fade(g, r, t)) {
-            world = world.child(card);
-        }
-    }
-    world = world.child(words(p, g, t, reduced));
-    // Bolts, sparks and ash, over the cards and under the share card.
-    let fx = fx(p, g, t, reduced);
-    if !fx.bolts.is_empty() || !fx.motes.is_empty() {
-        world = world.child(
-            effect(STRIKE_MARK)
-                .key("strike")
-                .absolute(0.0, 0.0)
-                .size(STAGE_W, STAGE_H),
-        );
-    }
-    fx::publish(fx);
-    world = world.children(share::share(p, g, t, reduced, look));
+        .children(look.hint.map(|copy| hint(p, copy, look.offer.as_ref())))
+        .children(answer::view(p, g, t, reduced, look));
+    // No bolts, sparks or ash any more: clear what the last frame left.
+    fx::publish(fx::Fx::default());
 
     el().key("stage")
         .size(STAGE_W, STAGE_H)
@@ -1252,67 +1259,11 @@ fn pill_in(fold: f32, reduced: bool) -> f32 {
 fn header<S: 'static>(
     p: Paint,
     g: &Play,
-    destroyed: usize,
     t: f64,
-    reduced: bool,
     look: &Look<'_, S>,
 ) -> El {
     let k = p.k;
     let chrome = chrome(g, t);
-    // The count kicks up as each card goes.
-    let pop = if reduced {
-        0.0
-    } else {
-        g.rounds
-            .iter()
-            .map(|r| (t - r.shatter()) as f32)
-            .filter(|te| *te >= 0.0)
-            .fold(0.0f32, |_, te| {
-                (-te * 7.0).exp() * (te * 22.0).cos().max(0.0)
-            })
-    };
-    let fold = fold(g, t);
-    // The pill steps aside for the share card, and the share card folds back into it.
-    let pill = match g.share {
-        Some(share) if t >= share && fold > 0.0 => pill_in(fold, reduced),
-        Some(share) if t >= share => 1.0 - smooth(0.0, 0.18, (t - share) as f32),
-        _ => 1.0,
-    };
-    let number = text(destroyed.to_string())
-        .key(format!("n{destroyed}"))
-        .font(score_font())
-        .color(if destroyed > 0 {
-            ember_tone(p, 0.7)
-        } else {
-            p.muted()
-        })
-        .transition(if reduced {
-            Transition::opacity()
-        } else {
-            Transition::offset(0.0, -8.0).combined(Transition::opacity())
-        });
-    let score = row()
-        .key("score")
-        .absolute(SCORE_AT[0], SCORE_AT[1])
-        .scale(1.0 + 0.12 * pop)
-        .opacity(pill)
-        .scale_motion(Anim::INSTANT)
-        .opacity_motion(Anim::INSTANT)
-        .size(pill_size(p, destroyed)[0], PILL_H)
-        .px(PILL_PAD)
-        .gap(PILL_GAP)
-        .center_y()
-        .radius(PILL_H * 0.5)
-        .fill(k.c.surface_raised)
-        .border(p.hair, k.c.border_weak)
-        .child(number)
-        .child(
-            text(tr("destroyed"))
-                .key("label")
-                .font(k.ty.small)
-                .color(p.muted()),
-        );
-    let show_score = destroyed > 0 && pill > 0.005;
     let title = col()
         .key("title")
         .absolute(0.0, 6.0)
@@ -1338,9 +1289,9 @@ fn header<S: 'static>(
             )
         } else {
             let sentence = if look.toggle {
-                tr("Tap {keys} and answer the one that's lit.")
+                tr("Tap {keys} and answer out loud.")
             } else {
-                tr("Hold {keys} and answer the one that's lit.")
+                tr("Hold {keys} and answer out loud.")
             };
             row().key("lead").gap(8.0).center_y().children(around_keys(
                 sentence,
@@ -1370,7 +1321,6 @@ fn header<S: 'static>(
         .absolute(0.0, 0.0)
         .size(STAGE_W, 84.0)
         .child(title)
-        .children(show_score.then_some(score))
         .children(done)
 }
 

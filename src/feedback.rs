@@ -19,12 +19,12 @@ mod imessage;
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum KeySoundStyle {
     /// A real mechanical keyboard, presses cut from a CC0 recording of an IBM
-    /// Model M, each at one of three pitches (default).
-    #[default]
+    /// Model M, each at one of three pitches. Loud.
     Clack,
     /// Dry, crisp 13 ms Apple Taptic-style micro-pulse.
     Taptic,
-    /// Whisper-quiet 28 ms felt-damped Magic Keyboard tap.
+    /// Whisper-quiet 28 ms felt-damped Magic Keyboard tap (default).
+    #[default]
     Felt,
     /// Rounded 22 ms low-pitch warm droplet.
     Soft,

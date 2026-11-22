@@ -367,19 +367,7 @@ impl Script<'_> {
             if self.with.utter == ANSWER_JAY.text() {
                 return &ANSWER_JAY;
             }
-            let words: Vec<&str> = self.with.utter.split_whitespace().collect();
-            let release = (0.1 + 0.2 * words.len() as f64).max(1.0);
-            let step = (release - 0.26) / words.len().max(1) as f64;
-            let updates: Vec<(f64, &'static str)> = (1..=words.len())
-                .map(|n| {
-                    let partial: &'static str = Box::leak(words[..n].join(" ").into_boxed_str());
-                    (0.16 + step * (n - 1) as f64, partial)
-                })
-                .collect();
-            Box::leak(Box::new(Take {
-                updates: Box::leak(updates.into_boxed_slice()),
-                release: (release * 10.0).round() / 10.0,
-            }))
+            super::fixture::even_take(self.with.utter)
         })
     }
 }

@@ -72,10 +72,10 @@ pub(crate) const FRANK: Notice = Notice {
 pub(crate) const JAY: Notice = Notice {
     key: "jay",
     app: App::Messages,
-    from: "Jay · CEO",
-    person: Some("Jay"),
+    from: "Nina",
+    person: None,
     place: None,
-    body: "The investors are in the room. Are we ready to ship?",
+    body: "Boarding closes in 2 minutes. Are you at the gate?",
     field: "iMessage",
 };
 pub(crate) const DAX: Notice = Notice {
