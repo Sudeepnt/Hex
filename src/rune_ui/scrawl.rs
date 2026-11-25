@@ -662,8 +662,8 @@ mod tests {
     fn opening_the_pane_reads_screen_recording_again() {
         let mut rt = pane("mac-scrawl");
         tap(&mut rt, "nav-general");
-        tap(&mut rt, "nav-labs");
-        tap(&mut rt, "nav-annotate");
+        tap(&mut rt, "nav-settings");
+        tap(&mut rt, "settings-annotate");
         assert_eq!(
             asked(&rt),
             [PlatformRequest::Scrawl(ScrawlRequest::Refresh)]

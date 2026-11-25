@@ -89,7 +89,7 @@ fn speech(rt: &Runtime<Ui>, index: Option<usize>) -> Option<KeyboardModelChoice>
 fn app_model_switching_is_a_labs_toggle_on_macos_and_windows() {
     let mut rt = runtime("mac-settings");
     assert!(!rt.state.settings.labs.app_model_switching);
-    tap(&mut rt, "nav-labs");
+    tap(&mut rt, "nav-settings");
     assert!(rt.find("lab-app-model-switching").is_some());
     tap(&mut rt, "lab-app-model-switching");
     assert!(rt.state.settings.labs.app_model_switching);
@@ -98,7 +98,7 @@ fn app_model_switching_is_a_labs_toggle_on_macos_and_windows() {
     assert!(!rt.state.settings.labs.app_model_switching);
 
     let mut rt = runtime("windows-settings");
-    tap(&mut rt, "nav-labs");
+    tap(&mut rt, "nav-settings");
     assert!(rt.find("lab-app-model-switching").is_some());
 
     // Linux has no foreground-mode switch. Its scene carries no
@@ -106,7 +106,7 @@ fn app_model_switching_is_a_labs_toggle_on_macos_and_windows() {
     let mut rt = runtime("portal");
     rt.state.platform.caps = platform::Capabilities::LINUX;
     settle(&mut rt);
-    tap(&mut rt, "nav-labs");
+    tap(&mut rt, "nav-settings");
     assert!(rt.find("lab-app-model-switching").is_none());
 }
 

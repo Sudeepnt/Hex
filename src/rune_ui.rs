@@ -54,12 +54,14 @@ mod platform;
 mod platform_settings;
 pub(crate) mod playground;
 mod practice;
+mod pricing;
 mod scenes;
 #[cfg(utter_capture)]
 mod scrawl;
 #[cfg(utter_capture)]
 pub(crate) mod screenshot_thumbnail;
 mod settings;
+mod settings_page;
 mod shortcut_mode;
 mod shortcut_rule;
 mod sidebar;
@@ -643,6 +645,7 @@ pub(crate) struct Ui {
     /// The settings the host last reported, to adopt only its changes.
     service_settings: Option<AppSettings>,
     pane: Pane,
+    update_reminder: sidebar_update::Reminder,
     open: Option<Menu>,
     // General
     microphones: Result<crate::audio::InputDevices, String>,
@@ -665,6 +668,8 @@ pub(crate) struct Ui {
     advanced: Vec<Pane>,
     /// The Labs page shows in place of a pane.
     labs_open: bool,
+    /// The Settings page's section last shown, which its sidebar item opens.
+    settings_section: settings_page::Section,
     /// The Labs store's search, tab, and chip.
     lab_store: labs::Store,
     /// Labs › Screenshots' saves-folder chooser, on the card.
@@ -789,6 +794,7 @@ impl Ui {
             connection_error: None,
             service_settings: None,
             pane: Pane::General,
+            update_reminder: sidebar_update::Reminder::default(),
             open: None,
             microphones: Ok(Default::default()),
             microphones_route: None,
@@ -799,6 +805,7 @@ impl Ui {
             general_search: TextEdit::default(),
             advanced: Vec::new(),
             labs_open: false,
+            settings_section: settings_page::Section::default(),
             lab_store: labs::Store::default(),
             #[cfg(all(target_os = "macos", utter_capture))]
             screenshot_folder: labs::screenshots::FolderChoice::default(),
@@ -1162,6 +1169,9 @@ impl Ui {
 
     /// Closes the dialogs and sheets a pane switch or window close ends.
     fn close_dialogs(&mut self) {
+        if self.update_reminder.open {
+            self.update_reminder.snooze();
+        }
         picker::close(self);
         explainer::close(self);
         sound_sets::close(self);
@@ -1192,9 +1202,12 @@ impl Ui {
             Pane::History => self.history.reload(),
             Pane::HudLab => self.ask(platform::PlatformRequest::ConfigureHud(self.platform.hud)),
             #[cfg(utter_capture)]
-            Pane::Annotate => self.ask(platform::PlatformRequest::Scrawl(
-                platform::ScrawlRequest::Refresh,
-            )),
+            Pane::Annotate => {
+                self.settings_section = settings_page::Section::Annotate;
+                self.ask(platform::PlatformRequest::Scrawl(
+                    platform::ScrawlRequest::Refresh,
+                ));
+            }
             _ => {}
         }
     }
@@ -1328,6 +1341,7 @@ fn poll(ui: &mut Ui, clock: f64, tx: &mut Tx) -> bool {
     }
     let now = Instant::now();
     let mut changed = ui.save_drafts(now);
+    changed |= sidebar_update::poll(ui, clock);
     changed |= paste_access::poll(ui);
     // The OpenCode catalog is read only while a pane that uses it shows:
     // Modes, or Meetings › Settings while OpenCode writes the summaries.
@@ -1481,6 +1495,15 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         Pane::VoiceFilter => (Vec::new(), fun::pane(ui, p)),
         Pane::HudLab => hud_lab::pane(ui, p),
         Pane::Activity => activity::pane(ui, p),
+        Pane::Pricing => (Vec::new(), pricing::pane(ui, p)),
+    };
+    // Annotate and Labs share the Settings page: its section tiles sit
+    // above whichever shows.
+    let in_settings = settings_page::is_open(ui);
+    let body = if in_settings {
+        settings_page::page(ui, p, body)
+    } else {
+        body
     };
     // The content sits on a soft raised card, rounder than the controls in it.
     let panel = col()
@@ -1499,8 +1522,8 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         .clip_soft(0.0)
         .child(pane_header(
             p,
-            if ui.labs_open {
-                tr("Labs")
+            if in_settings {
+                tr("Advanced settings")
             } else {
                 ui.pane.title()
             },
@@ -1534,6 +1557,9 @@ fn view(ui: &Ui, cx: &mut Cx<Ui>) -> El {
         layer.extend(modal);
     }
     if let Some(modal) = vocabulary::modal(ui, p) {
+        layer.extend(modal);
+    }
+    if let Some(modal) = sidebar_update::modal(ui, p) {
         layer.extend(modal);
     }
     if let Some(first_run) = onboarding_kit::live::overlay(ui, p, cx.is_reduced_motion()) {

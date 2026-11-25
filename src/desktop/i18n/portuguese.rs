@@ -1358,6 +1358,10 @@ const TRANSLATIONS: &[(&str, &str)] = &[
     ("Thu", "Qui"),
     ("Fri", "Sex"),
     ("Sat", "Sáb"),
+    ("On", "Ligado"),
+    ("{} on", "{} ativados"),
+    ("Draw on your screen and talk over it", "Desenhe na tela e fale sobre ela"),
+    ("Try features before they ship", "Experimente recursos antes do lançamento"),
 ];
 
 #[cfg(test)]

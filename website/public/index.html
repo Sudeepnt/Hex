@@ -11,7 +11,6 @@
     <title>Utter — Give your keyboard a break.</title>
     <link rel="icon" type="image/png" href="/assets/utter-logo.png" />
     <link rel="stylesheet" href="/style.css" />
-    <script type="module" src="/app.js"></script>
   </head>
   <body>
     <header class="nav">
@@ -24,8 +23,8 @@
         />utter</a
       >
       <nav aria-label="Main navigation">
-        <a href="#how">How it works</a><a href="#pricing">Pricing</a
-        ><a class="nav-download" href="#download">Get Utter</a>
+        <a href="#how">How it works</a>
+        <a class="nav-download" href="#download">Get Utter</a>
       </nav>
     </header>
     <main>
@@ -125,41 +124,6 @@
           serve published releases as they become available.
         </p>
       </section>
-      <section id="pricing" class="section pricing">
-        <div>
-          <p class="eyebrow">Choose your rhythm</p>
-          <h2>A little each month.<br />Or yours forever.</h2>
-          <p>Planned pricing in US dollars. Payments are coming soon.</p>
-        </div>
-        <div class="price-grid">
-          <article>
-            <h3>Monthly</h3>
-            <p class="price">
-              <span data-price="monthly"></span
-              ><span class="interval">/ month</span>
-            </p>
-            <p data-description="monthly"></p>
-            <button class="button secondary" data-plan="monthly">
-              Choose monthly
-            </button>
-          </article>
-          <article class="lifetime">
-            <h3>Lifetime</h3>
-            <p class="price">
-              <span data-price="lifetime"></span
-              ><span class="interval">once</span>
-            </p>
-            <p>One purchase. Local dictation for the long run.</p>
-            <button class="button primary" data-plan="lifetime">
-              Choose lifetime
-            </button>
-          </article>
-        </div>
-        <p class="fine">
-          Plan selection previews the purchase flow. Billing and license
-          activation will be available when payments launch.
-        </p>
-      </section>
       <section class="section faq">
         <h2>A few things<br />before you speak.</h2>
         <div>
@@ -184,13 +148,6 @@
               shortcut and paste text into the app you’re using.
             </p>
           </details>
-          <details>
-            <summary>Can I pay now?</summary>
-            <p>
-              Payments are coming soon. The plan picker previews your choice. It
-              does not collect payment details or activate a license.
-            </p>
-          </details>
         </div>
       </section>
     </main>
@@ -199,19 +156,5 @@
       <p>Your words belong with you.</p>
       <a href="https://github.com/Sudeepnt/Hex">Source on GitHub</a>
     </footer>
-    <dialog id="checkout" aria-labelledby="checkout-title">
-      <button class="close" aria-label="Close purchase preview">×</button>
-      <p class="eyebrow">Purchase preview</p>
-      <h2 id="checkout-title"></h2>
-      <p id="checkout-detail"></p>
-      <p>
-        Payments are coming soon. You can download Utter while we prepare
-        checkout.
-      </p>
-      <a class="button primary" href="#download" id="checkout-download"
-        >See downloads</a
-      >
-      <p class="fine">Billing and license activation are pending.</p>
-    </dialog>
   </body>
 </html>

@@ -49,19 +49,19 @@ fn keyboard_model_switching_is_a_labs_toggle_wherever_layouts_are_observable() {
         rt.find("keyboard-model-switching").is_none(),
         "no General row"
     );
-    tap(&mut rt, "nav-labs");
+    tap(&mut rt, "nav-settings");
     tap(&mut rt, "lab-keyboard-model-switching");
     assert!(rt.state.settings.keyboard_model_switching.enabled);
     assert_eq!(rt.state.saved, 1);
     tap(&mut rt, "lab-keyboard-model-switching");
     assert!(!rt.state.settings.keyboard_model_switching.enabled);
     let mut rt = runtime("windows-settings");
-    tap(&mut rt, "nav-labs");
+    tap(&mut rt, "nav-settings");
     assert!(rt.find("lab-keyboard-model-switching").is_some());
     // Wayland (the portal scene) has no layout protocol.
     let mut rt = runtime("portal");
     rt.state.platform.caps.keyboard_model_switching = false;
-    tap(&mut rt, "nav-labs");
+    tap(&mut rt, "nav-settings");
     assert!(rt.find("lab-keyboard-model-switching").is_none());
 }
 

@@ -18,6 +18,11 @@ static OUTPUT_ICON: Icon = Icon {
     view: 24.0,
     body: include_str!("../../assets/icons/output.svg"),
 };
+static PRICING_ICON: Icon = Icon {
+    name: "utter-pricing",
+    view: 24.0,
+    body: r#"<rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M3 10h18M7 15h4" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>"#,
+};
 static HISTORY_ICON: Icon = Icon {
     name: "utter-history",
     view: 24.0,
@@ -65,6 +70,8 @@ pub(super) enum Pane {
     /// Recorded calls and their settings, or the opt-in (macOS beta).
     Meetings,
     History,
+    /// Plans and purchase previews.
+    Pricing,
     /// The shots and recordings Labs › Screenshots saved (macOS, while
     /// it's on).
     #[cfg(utter_capture)]
@@ -91,6 +98,7 @@ impl Pane {
         Pane::Modes,
         Pane::Meetings,
         Pane::History,
+        Pane::Pricing,
         #[cfg(utter_capture)]
         Pane::Captures,
         #[cfg(utter_capture)]
@@ -122,6 +130,7 @@ impl Pane {
             Pane::Output => tr("Output"),
             Pane::Modes => tr("Modes"),
             Pane::History => tr("History"),
+            Pane::Pricing => tr("Pricing"),
             #[cfg(utter_capture)]
             Pane::Captures => tr("Captures"),
             Pane::Meetings => tr("Meetings"),
@@ -139,6 +148,7 @@ impl Pane {
             Pane::Output => "nav-output",
             Pane::Modes => "nav-modes",
             Pane::History => "nav-history",
+            Pane::Pricing => "nav-pricing",
             #[cfg(utter_capture)]
             Pane::Captures => "nav-captures",
             Pane::Meetings => "nav-meetings",
@@ -156,6 +166,7 @@ impl Pane {
             Pane::Output => &OUTPUT_ICON,
             Pane::Modes => &MODES_ICON,
             Pane::History => &HISTORY_ICON,
+            Pane::Pricing => &PRICING_ICON,
             #[cfg(utter_capture)]
             Pane::Captures => &captures::CAPTURES_ICON,
             Pane::Meetings => &MEETINGS_ICON,
@@ -219,16 +230,11 @@ pub(super) fn pane_header(p: Paint, title: &str, switch: Option<El>, actions: Ve
 pub(super) fn sidebar(ui: &Ui, p: Paint) -> El {
     let mut nav = lists::source_list(col().key("nav"));
     for pane in labs::main_panes(ui) {
-        nav = nav.child(nav_slot(
-            p,
-            pane,
-            ui.pane == pane && !ui.labs_open,
-            NAV_ROW_GAP / 2.0,
-            NAV_ROW_GAP / 2.0,
-        ));
+        nav = nav.child(nav_slot(p, pane, ui.pane == pane && !ui.labs_open));
     }
     nav = nav.children(labs::playground_nav(ui, p));
-    nav = nav.child(labs::nav(ui, p));
+    // Annotate and Labs live on the Settings page.
+    nav = nav.child(settings_page::nav(ui, p));
     title_bar(col())
         .key("sidebar")
         .role("navigation")
@@ -353,8 +359,7 @@ fn footer(ui: &Ui, p: Paint) -> El {
         .gap(8.0)
         .center_y()
         .child(
-            onboarding_kit::utter_meter::utter_meter(p, "brand-mark", 18.0, 1.0, 1.0)
-                .a11y_hidden(),
+            onboarding_kit::utter_meter::utter_meter(p, "brand-mark", 18.0, 1.0, 1.0).a11y_hidden(),
         )
         .child(
             text("Utter")
@@ -508,36 +513,65 @@ fn version_label() -> String {
 /// reaching halfway into the gaps around its item, so wherever the pointer
 /// is in the column, the nearest item shows its hover, and a press there
 /// selects it.
-fn nav_slot(p: Paint, pane: Pane, on: bool, above: f32, below: f32) -> El {
+fn nav_slot(p: Paint, pane: Pane, on: bool) -> El {
+    nav_entry(
+        p,
+        pane.key(),
+        pane.icon(),
+        pane.title(),
+        on,
+        std::rc::Rc::new(move |ui: &mut Ui, tx: &mut Tx| ui.select_pane(pane, tx)),
+    )
+}
+
+/// A sidebar item in its slot: a pane, or Settings. `select` shows what it
+/// opens, and leaves it alone while it already shows.
+pub(super) fn nav_entry(
+    p: Paint,
+    key: &'static str,
+    icon: &'static Icon,
+    title: &'static str,
+    on: bool,
+    select: std::rc::Rc<dyn Fn(&mut Ui, &mut Tx)>,
+) -> El {
+    let (down, press) = (select.clone(), select.clone());
     col()
-        .key(format!("{}-slot", pane.key()))
+        .key(format!("{key}-slot"))
         // Assistive technology sees the item alone.
         .role("none")
-        .pt(above)
-        .pb(below)
+        .pt(NAV_ROW_GAP / 2.0)
+        .pb(NAV_ROW_GAP / 2.0)
         .hover_group()
         .on_drag(move |ui: &mut Ui, d: &mut rune::Drag, tx: &mut Tx| {
-            select_on_down(ui, d, tx, pane)
+            select_on_down(ui, d, tx, &*down)
         })
-        .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| ui.select_pane(pane, tx))
-        .child(nav_item(p, pane, on))
+        .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| press(ui, tx))
+        .child(nav_item(p, key, icon, title, on, select))
 }
 
 /// Switch on pointer down, like a native sidebar; the press keeps keyboard
 /// activation.
-fn select_on_down(ui: &mut Ui, d: &mut rune::Drag, tx: &mut Tx, pane: Pane) {
+fn select_on_down(ui: &mut Ui, d: &mut rune::Drag, tx: &mut Tx, select: &dyn Fn(&mut Ui, &mut Tx)) {
     if d.phase == rune::Phase::Down {
-        ui.select_pane(pane, tx);
+        select(ui, tx);
     }
 }
 
-fn nav_item(p: Paint, pane: Pane, on: bool) -> El {
+fn nav_item(
+    p: Paint,
+    key: &'static str,
+    glyph: &'static Icon,
+    title: &'static str,
+    on: bool,
+    select: std::rc::Rc<dyn Fn(&mut Ui, &mut Tx)>,
+) -> El {
     let c = &p.k.c;
+    let down = select.clone();
     // A row of the navigation list, selected while its pane shows.
     let mut item = row()
-        .key(pane.key())
+        .key(key)
         .role("listitem")
-        .label(pane.title())
+        .label(title)
         .h(NAV_ROW_HEIGHT)
         .px(6.0)
         .gap(8.0)
@@ -545,9 +579,9 @@ fn nav_item(p: Paint, pane: Pane, on: bool) -> El {
         .radius(p.k.radius.sm)
         .press(c.pressed)
         .on_drag(move |ui: &mut Ui, d: &mut rune::Drag, tx: &mut Tx| {
-            select_on_down(ui, d, tx, pane)
+            select_on_down(ui, d, tx, &*down)
         })
-        .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| ui.select_pane(pane, tx))
+        .on_press_tx(move |ui: &mut Ui, tx: &mut Tx| select(ui, tx))
         // The slot's hover, drawn on the item.
         .child(
             el().key("hover")
@@ -558,13 +592,13 @@ fn nav_item(p: Paint, pane: Pane, on: bool) -> El {
                 .a11y_hidden(),
         )
         .child(
-            icon(pane.icon(), 16.0)
+            icon(glyph, 16.0)
                 .key("icon")
                 .color(if on { c.icon_accent } else { c.icon_muted })
                 .a11y_hidden(),
         )
         .child(
-            text(pane.title())
+            text(title)
                 .key("label")
                 .font(if on { p.k.ty.ui_medium } else { p.k.ty.ui })
                 .color(if on { c.text_base } else { c.text_muted })
@@ -573,14 +607,16 @@ fn nav_item(p: Paint, pane: Pane, on: bool) -> El {
         );
     if on {
         // Selected: an accent tint with a short accent bar on its leading edge.
-        item = item.fill(c.bg_accent.alpha(if p.k.dark { 0.22 } else { 0.10 })).child(
-            el().key("indicator")
-                .absolute(1.0, (NAV_ROW_HEIGHT - 14.0) / 2.0)
-                .size(3.0, 14.0)
-                .radius(1.5)
-                .fill(c.icon_accent)
-                .a11y_hidden(),
-        );
+        item = item
+            .fill(c.bg_accent.alpha(if p.k.dark { 0.22 } else { 0.10 }))
+            .child(
+                el().key("indicator")
+                    .absolute(1.0, (NAV_ROW_HEIGHT - 14.0) / 2.0)
+                    .size(3.0, 14.0)
+                    .radius(1.5)
+                    .fill(c.icon_accent)
+                    .a11y_hidden(),
+            );
     }
     lists::source_item(item, on)
 }

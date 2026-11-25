@@ -30,7 +30,7 @@ fn each_os_lists_only_the_panes_it_can_run() {
         assert!(rt.find("lab-meetings").is_some(), "{scene} offers Meetings");
     }
     let mut mac = runtime("mac-settings", true, PANE_SIZE);
-    tap(&mut mac, "nav-labs");
+    tap(&mut mac, "nav-settings");
     for (key, pane) in [
         ("nav-meetings", Pane::Meetings),
         ("nav-general", Pane::General),
@@ -1986,7 +1986,7 @@ fn hud_lab_and_activity_stay_out_of_the_window_sidebar() {
     let mut rt = runtime("mac-settings", true, PANE_SIZE);
     rt.state.platform.developer = true;
     refresh(&mut rt);
-    tap(&mut rt, "nav-labs");
+    tap(&mut rt, "nav-settings");
     assert!(rt.find("nav-hud-lab").is_none());
     assert!(rt.find("nav-activity").is_none());
     assert!(
@@ -2682,7 +2682,7 @@ fn labs_groups_fold_and_remember_it() {
     assert!(rt.find("lab-card-live-text").is_none());
     assert_eq!(rt.state.settings.labs.groups.get("dictation"), Some(&false));
     tap(&mut rt, "nav-general");
-    tap(&mut rt, "nav-labs");
+    tap(&mut rt, "nav-settings");
     assert!(rt.find("lab-card-unload-idle").is_some(), "remembered");
     assert!(rt.find("lab-card-live-text").is_none(), "remembered");
 
@@ -2892,7 +2892,7 @@ fn labs_run_setup_again_opens_the_first_run() {
 fn run_setup_again_opens_the_first_run_on_linux_and_windows() {
     for scene in ["portal", "windows-settings"] {
         let mut rt = runtime(scene, true, (980.0, 2000.0));
-        tap(&mut rt, "nav-labs");
+        tap(&mut rt, "nav-settings");
         tap(&mut rt, "restart-onboarding");
         assert!(rt.state.error.is_none(), "{scene}: {:?}", rt.state.error);
         assert!(rt.state.first_run.is_some(), "{scene}: the first run opens");
@@ -3359,7 +3359,7 @@ fn a_finger_pans_the_transcript_and_taps_the_sidebar() {
         "the transcript followed the finger"
     );
 
-    let (x, y) = rt.find("nav-labs").expect("the Labs item");
+    let (x, y) = rt.find("nav-settings").expect("the Settings item");
     rt.touch(2, Started, x, y, 1.0);
     rt.touch(2, Ended, x, y, 1.05);
     settle(&mut rt);

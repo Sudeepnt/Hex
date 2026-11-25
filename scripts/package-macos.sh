@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
 # Public builds require Developer ID signing and notarization. --local creates
-# an explicitly unsigned preview for this machine and manual testing only.
+# an explicitly unsigned preview for manual testing, never a stable release.
 set -euo pipefail
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
 cd "$root"
 export UTTER_VERSION=${UTTER_VERSION:-$(sed -n 's/^version = "\([^"]*\)"/\1/p' Cargo.toml | head -1)}
 export UTTER_LOCAL_BUILD=1
+export UTTER_GITHUB_UPDATES=1
 export CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_STRIP=false
 export TRANSCRIBE_CMAKE_ARGS="${TRANSCRIBE_CMAKE_ARGS:-} -DGGML_NATIVE=OFF"
 if [ "${1:-}" = --local ]; then
   export UTTER_RELEASE_UNSIGNED=1
+  export UTTER_BUILD_CHANNEL=beta
   suffix=-local-unsigned
 else
   : "${UTTER_TEAM_ID:?Public releases require an Apple Developer team}"

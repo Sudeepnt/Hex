@@ -34,20 +34,16 @@ pub(super) static LABS_ICON: Icon = Icon {
 };
 
 /// The main sidebar's panes, in order: General, Output, History, then the
-/// features turned on (Meetings and Voice Filter from Labs, Annotate in dev
-/// builds).
+/// features turned on (Meetings and Voice Filter from Labs). Annotate opens
+/// from the Settings page, with Labs.
 pub(super) fn main_panes(ui: &Ui) -> Vec<Pane> {
     let mut panes = vec![Pane::General, Pane::Output, Pane::History];
     #[cfg(utter_capture)]
-    let optional = [
-        Pane::Captures,
-        Pane::Meetings,
-        Pane::Annotate,
-        Pane::VoiceFilter,
-    ];
+    let optional = [Pane::Captures, Pane::Meetings, Pane::VoiceFilter];
     #[cfg(not(utter_capture))]
     let optional = [Pane::Meetings, Pane::VoiceFilter];
     panes.extend(optional.into_iter().filter(|pane| pane.shown(ui)));
+    panes.push(Pane::Pricing);
     panes
 }
 
@@ -129,22 +125,9 @@ pub(super) fn playground_nav(ui: &Ui, p: Paint) -> Option<El> {
     })
 }
 
-/// The Labs item: opens the Labs page.
-pub(super) fn nav(ui: &Ui, p: Paint) -> El {
-    let on = ui.labs_open;
-    nav_row(
-        p,
-        "nav-labs",
-        &LABS_ICON,
-        tr("Labs"),
-        on,
-        true,
-        |ui: &mut Ui, tx: &mut Tx| {
-            if !ui.labs_open {
-                open(ui, tx);
-            }
-        },
-    )
+/// How many labs are on, for the Settings page's Labs tile.
+pub(super) fn turned_on(ui: &Ui) -> usize {
+    shown(ui).iter().filter(|row| row.on).count()
 }
 
 /// One lab: a Labs feature, or Annotate in capture builds.
@@ -371,9 +354,11 @@ pub(super) fn reveal(ui: &mut Ui, link: &LabsLink, tx: &mut Tx) {
     }
 }
 
-fn open(ui: &mut Ui, tx: &mut Tx) {
+/// Shows Labs: the Settings page on its Labs section.
+pub(super) fn open(ui: &mut Ui, tx: &mut Tx) {
     ui.select_pane(Pane::General, tx);
     ui.labs_open = true;
+    ui.settings_section = super::settings_page::Section::Labs;
     ui.lab_store = Store::default();
     ui.lab_store
         .sync_phrase(&ui.settings.labs.voice_prompt_phrase);

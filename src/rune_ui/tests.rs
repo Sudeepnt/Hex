@@ -68,7 +68,7 @@ fn tap(rt: &mut Runtime<Ui>, key: &str) {
 
 /// Opens Labs with every group unfolded, so each card is on screen.
 fn open_labs(rt: &mut Runtime<Ui>) {
-    tap(rt, "nav-labs");
+    tap(rt, "nav-settings");
     unfold_labs(rt);
 }
 
@@ -302,7 +302,11 @@ fn each_panes_advanced_fold_starts_closed_and_stays_its_own() {
 #[test]
 fn desktops_without_a_portal_list_commands_instead_of_recording_rows() {
     let rt = runtime("commands", true, GOLDEN_SIZE);
-    assert!(texts(&rt).iter().any(|text| text == "utter dictation toggle"));
+    assert!(
+        texts(&rt)
+            .iter()
+            .any(|text| text == "utter dictation toggle")
+    );
     assert!(rt.find("dictation-hotkey").is_none());
     assert!(rt.find("paste-last-hotkey").is_none());
 }
@@ -975,7 +979,7 @@ fn the_sidebar_switches_on_press_not_release() {
 #[test]
 fn switching_panes_is_instant() {
     let mut rt = runtime("portal", true, PANE_SIZE);
-    tap(&mut rt, "nav-labs");
+    tap(&mut rt, "nav-settings");
     settle(&mut rt);
     let (x, y) = rt.find("nav-output").expect("the Output item");
     rt.pointer_down(x, y);
@@ -1032,12 +1036,12 @@ fn nav_items(rt: &Runtime<Ui>) -> Vec<(Pane, [f32; 4])> {
 type NavRow = (Pane, [f32; 4]);
 
 /// Neighbouring sidebar items with nothing but a gap between them: the
-/// Labs row sits below the panes.
+/// Settings row sits below the panes.
 fn nav_neighbours(rt: &Runtime<Ui>) -> Vec<(NavRow, NavRow)> {
     let labs = rt
         .elements()
         .into_iter()
-        .find(|e| e.key.as_deref() == Some("nav-labs"))
+        .find(|e| e.key.as_deref() == Some("nav-settings"))
         .map(|e| e.rect);
     nav_items(rt)
         .windows(2)
@@ -2864,8 +2868,8 @@ fn the_sidebar_moves_with_arrows_and_command_numbers() {
     key(&mut rt, Key::Down, Mods::default());
     assert!(rt.state.labs_open, "Down from the last pane opens Labs");
     assert!(
-        focused(&rt).ends_with("nav-labs"),
-        "focus follows to the Labs item: {}",
+        focused(&rt).ends_with("nav-settings"),
+        "focus follows to the Settings item: {}",
         focused(&rt)
     );
     key(&mut rt, Key::Down, Mods::default());
@@ -3498,4 +3502,18 @@ fn output_fixes_show_only_with_their_lab_and_fix_this_copies_for_the_sentence() 
     );
     tap(&mut on, "output-vocabulary");
     assert!(on.state.vocabulary.open);
+}
+
+#[test]
+fn pricing_says_the_app_is_free_without_purchase_actions() {
+    for scene in ["mac-settings", "windows-settings"] {
+        let mut rt = runtime(scene, true, TALL_SIZE);
+        tap(&mut rt, "nav-pricing");
+        assert_eq!(rt.state.pane, Pane::Pricing);
+        let shown = texts(&rt);
+        assert!(shown.iter().any(|line| line == "Free right now"));
+        assert!(rt.find("preview-monthly").is_none());
+        assert!(sent(&rt).is_empty());
+        assert_eq!(saved(&rt), 0);
+    }
 }

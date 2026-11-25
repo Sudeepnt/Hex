@@ -14,7 +14,7 @@ macOS (Apple silicon) needs Xcode and Rust:
 
 ```sh
 CARGO_PROFILE_RELEASE_BUILD_OVERRIDE_STRIP=false UTTER_TEST_BUILD=1 ./scripts/build-app.sh
-open "target/app/Utter Test.app"
+open "target/app/Utter.app"
 ```
 
 `cargo run -- app` starts the desktop app from a checkout on any OS.
@@ -67,8 +67,8 @@ Configure `UTTER_TEAM_ID` and a Developer ID Application certificate in Keychain
 plus either `UTTER_NOTARY_PROFILE` or `UTTER_NOTARY_KEY`, `UTTER_NOTARY_KEY_ID`, and
 `UTTER_NOTARY_ISSUER`. `./scripts/package-macos.sh --local` produces a separately
 named, ad-hoc-signed preview for local testing. It cannot pass the public release
-validation. Both builds disable automatic updates while a release service is
-unconfigured.
+validation. Configured packages check GitHub Releases for newer installers. Unsigned previews
+use an explicit download-and-install flow; they never silently replace the app.
 
 The manually triggered `Build downloadable installers` GitHub workflow produces
 Mac and Windows artifacts and runs the website checks. Set these repository
@@ -92,12 +92,14 @@ Authenticode signature. Configure Windows code signing before public distributio
 if you want a verified publisher. Run a manual Windows first-launch and dictation
 check before publication.
 
-### Pricing preview
+### In-app pricing preview
 
-`website/public/config.js` contains the display prices. Monthly is US$0.50 per month. Lifetime is US$50. The plan buttons open a purchase preview. Checkout, billing, receipts,
-subscription handling, and app license enforcement still need the payment
-integration. Downloads currently require no purchase. The existing MIT source
-license remains applicable.
+Open **Pricing** in the desktop app sidebar. It clearly says **Free right now**;
+no purchase or license is required. Paid plans are not active. Prices and preview
+content live in `src/rune_ui/pricing.rs`. The website offers downloads without
+pricing or checkout. Billing, receipts, subscriptions, and app license enforcement
+still need payment integration. Downloads currently require no purchase. The
+existing MIT source license remains applicable.
 
 ### Release verification remaining
 
@@ -107,3 +109,26 @@ permission, Accessibility permission, shortcut capture, dictation into another a
 and relaunch on a clean Mac, including macOS 15. No permissions are granted by a
 build or smoke test. The website can be deployed independently while downloads are
 being prepared.
+
+
+## Publishing updates
+
+Packaged builds with `UTTER_GITHUB_UPDATES=1` check the public releases in
+`Sudeepnt/Utter` ten seconds after startup, then every fifteen minutes. The
+running version is compared numerically with the published desktop version;
+older or identical versions are never offered as updates. Beta builds also see
+published previews. Drafts, other platforms, unrelated URLs, and releases without
+checksums are ignored.
+
+When a newer installer exists, **Download update** stays in the sidebar and a
+reminder returns ten minutes after dismissal. Clicking downloads the installer;
+the user runs it and reopens Utter to complete the update. Unsigned previews do
+not silently execute or replace an installed app. Existing signature requirements
+for any future automatic self-replacement remain enforced.
+
+For the next update, increment `Cargo.toml` and its root `Cargo.lock` entry in
+both app repositories, build and verify installers, and publish a higher-version
+release with installer assets and `SHA256SUMS.txt` to `Sudeepnt/Utter`. A code push
+alone is not an installer release. Stable Mac distribution still requires a
+Developer ID certificate and Apple notarization; publish unsigned test builds
+only as clearly labelled previews.
