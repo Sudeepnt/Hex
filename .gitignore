@@ -19,3 +19,5 @@ __pycache__/
 /perf/seeds/.generated/
 /.render
 /captures
+/website/.vercel/
+/website/.env*.local

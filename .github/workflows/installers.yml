@@ -1,0 +1,95 @@
+name: Build downloadable installers
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  mac:
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Import Developer ID certificate
+        env:
+          CERTIFICATE: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+          CERT_PASSWORD: ${{ secrets.MAC_CERTIFICATE_PASSWORD }}
+        run: |
+          test -n "$CERTIFICATE" || { echo 'Configure Apple signing secrets before building a public installer.'; exit 1; }
+          keychain="$RUNNER_TEMP/utter-signing.keychain-db"
+          password=$(openssl rand -hex 24)
+          echo "$CERTIFICATE" | base64 --decode > "$RUNNER_TEMP/certificate.p12"
+          security create-keychain -p "$password" "$keychain"
+          security set-keychain-settings -lut 21600 "$keychain"
+          security unlock-keychain -p "$password" "$keychain"
+          security import "$RUNNER_TEMP/certificate.p12" -P "$CERT_PASSWORD" -A -t cert -f pkcs12 -k "$keychain"
+          security list-keychain -d user -s "$keychain" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$password" "$keychain"
+          rm "$RUNNER_TEMP/certificate.p12"
+      - name: Build, notarize and validate disk image
+        env:
+          UTTER_TEAM_ID: ${{ secrets.MAC_TEAM_ID }}
+          NOTARY_KEY: ${{ secrets.MAC_NOTARY_KEY }}
+          UTTER_NOTARY_KEY_ID: ${{ secrets.MAC_NOTARY_KEY_ID }}
+          UTTER_NOTARY_ISSUER: ${{ secrets.MAC_NOTARY_ISSUER }}
+        run: |
+          export UTTER_NOTARY_KEY="$RUNNER_TEMP/notary.p8"
+          printf '%s' "$NOTARY_KEY" > "$UTTER_NOTARY_KEY"
+          ./scripts/package-macos.sh
+      - name: Smoke test app bundle
+        run: ./scripts/smoke-macos-app.sh target/app/Utter.app
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-installer
+          path: |
+            dist/*.dmg
+            dist/*.sha256
+          if-no-files-found: error
+      - name: Remove signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/utter-signing.keychain-db" || true
+          rm -f "$RUNNER_TEMP/notary.p8" "$RUNNER_TEMP/certificate.p12"
+  windows:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: ilammy/msvc-dev-cmd@v1
+      - name: Install Vulkan SDK
+        shell: pwsh
+        run: |
+          choco install vulkan-sdk --yes --no-progress
+          $sdk = Get-ChildItem C:\VulkanSDK -Directory | Sort-Object Name -Descending | Select-Object -First 1
+          if (-not $sdk) { throw 'Vulkan SDK was not installed' }
+          "VULKAN_SDK=$($sdk.FullName)" >> $env:GITHUB_ENV
+          "$($sdk.FullName)\Bin" >> $env:GITHUB_PATH
+      - name: Build Windows executables
+        shell: bash
+        env:
+          UTTER_LOCAL_BUILD: '1'
+        run: ./scripts/build-windows.sh
+      - name: Build and test installer
+        shell: pwsh
+        run: |
+          $version = ((Select-String '^version = "([^"]+)"' Cargo.toml | Select-Object -First 1).Matches.Groups[1].Value)
+          $exe = "dist/utter-$version-windows-x64.exe"
+          $console = "dist/utter-$version-windows-x64.com"
+          ./scripts/build-windows-installer.ps1 -Executable $exe -Console $console -Version $version -Arch x86_64 -OutDir dist
+          ./scripts/test-windows-installer.ps1 -Installer "dist/utter-setup-$version-windows-x64.exe" -Executable $exe -Console $console -Version $version
+          Get-FileHash "dist/utter-setup-$version-windows-x64.exe" -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } | Set-Content "dist/utter-setup-$version-windows-x64.exe.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-installer
+          path: |
+            dist/utter-setup-*.exe
+            dist/*.sha256
+          if-no-files-found: error
+  website:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: npm run build && npm test
+        working-directory: website

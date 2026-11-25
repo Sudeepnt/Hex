@@ -4,7 +4,7 @@ version = "3.4.0"
 edition = "2024"
 default-run = "utter"
 license = "MIT"
-repository = "https://utter.example/source"
+repository = "https://github.com/Sudeepnt/Hex"
 
 # Crates imported from Scrawl live under `crates/`. Plain `cargo build` and
 # `cargo test` still select only Utter; pass `--workspace` or `-p` for the others.

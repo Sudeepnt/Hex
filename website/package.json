@@ -1,0 +1,10 @@
+{
+  "name": "utter-downloads",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/check.mjs",
+    "test": "node --test tests/*.test.mjs",
+    "dev": "npx vercel dev"
+  }
+}

@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/usr/bin/env bash
 set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
@@ -93,7 +93,7 @@ url_scheme=utter
 plutil -replace NSCameraUsageDescription -string "Utter mirrors and records a cabled iPhone's screen for a capture." "$bundle/Contents/Info.plist"
 rm -rf "$icon_output"
 mkdir -p "$icon_output"
-if xcrun --find actool >/dev/null 2>&1; then
+if [ ! -f "$root/assets/icons/utter-logo.png" ] && xcrun --find actool >/dev/null 2>&1; then
   xcrun actool "$root/app/AppIcon.icon" \
     --compile "$icon_output" \
     --platform macosx \
@@ -106,8 +106,7 @@ if xcrun --find actool >/dev/null 2>&1; then
     --notices >&2
   cp "$icon_output/AppIcon.icns" "$icon_output/Assets.car" "$bundle/Contents/Resources/"
 else
-  # Without Xcode there is no actool: build a plain .icns from the rendered
-  # app icon (scripts/render-icons.swift) instead of the layered Liquid Glass one.
+  # Package the supplied raster artwork consistently on Xcode and CLT.
   swift "$root/scripts/render-icons.swift" "$root" >/dev/null
   iconset="$icon_output/AppIcon.iconset"
   mkdir -p "$iconset"

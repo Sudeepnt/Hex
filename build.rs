@@ -77,6 +77,17 @@ fn main() {
     println!("cargo:rustc-link-lib=framework=EventKit");
     compile_permission_guide();
     println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/lib/swift");
+    // Swift dependencies can autolink compatibility archives. CLT installs
+    // these outside the Xcode toolchain layout.
+    for base in [
+        PathBuf::from(developer_dir.trim()).join("usr/lib/swift/macosx"),
+        PathBuf::from(developer_dir.trim())
+            .join("Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx"),
+    ] {
+        if base.is_dir() {
+            println!("cargo:rustc-link-search=native={}", base.display());
+        }
+    }
     for runtime in ["swift-5.5/macosx", "swift/macosx"] {
         let swift_runtime = format!(
             "{}/Toolchains/XcodeDefault.xctoolchain/usr/lib/{runtime}",

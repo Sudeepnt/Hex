@@ -30,7 +30,9 @@ if ! kill -0 "$pid" 2>/dev/null; then
   pid=
   fail "exited with status $status within $seconds seconds"
 fi
-[ -s "$support/logs/process.log" ] || fail "wrote no process log"
+[ -f "$support/logs/process.log" ] || fail "created no process log"
+UTTER_APPLICATION_SUPPORT_DIR="$support" "$bundle/Contents/MacOS/utter" status \
+  > "$support/status.log" 2>&1 || fail "local control API did not answer"
 
 kill -INT "$pid"
 waited=0
